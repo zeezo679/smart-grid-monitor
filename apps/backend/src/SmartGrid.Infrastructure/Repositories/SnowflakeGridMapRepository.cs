@@ -36,13 +36,13 @@ public sealed class SnowflakeGridMapRepository : IGridMapReadRepository
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
-        var sqlBuilder = new StringBuilder("""
+        var sqlBuilder = new StringBuilder($$"""
             WITH filtered_alerts AS (
                 SELECT
                     TRANSFORMER_ID,
                     EVENT_TYPE,
                     END_TS
-                FROM ANOMALY_FLAGS
+                FROM {{SnowflakeQuery.AnomalyEvents}} e
                 WHERE START_TS < :2 AND END_TS >= :1
             ),
             alert_agg AS (

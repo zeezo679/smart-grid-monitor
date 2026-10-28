@@ -10,7 +10,7 @@ namespace SmartGrid.Infrastructure.Repositories;
 
 /// <summary>
 /// Snowflake repository implementation for dashboard-level analytical queries.
-/// Queries KPI_DAILY_DEMAND, ANOMALY_FLAGS, and FACT_TRANSFORMER_READINGS.
+/// Queries KPI_DAILY_DEMAND, ANOMALY_FLAGS (merged into events), and FACT_TRANSFORMER_READINGS.
 /// </summary>
 public sealed class SnowflakeDashboardRepository : IDashboardReadRepository
 {
@@ -31,7 +31,7 @@ public sealed class SnowflakeDashboardRepository : IDashboardReadRepository
     {
         ArgumentNullException.ThrowIfNull(period);
 
-        const string sql = """
+        const string sql = $$"""
             WITH demand AS (
                 SELECT
                     SUM(TOTAL_DAILY_KWH) AS TOTAL_ENERGY_KWH,
@@ -47,7 +47,7 @@ public sealed class SnowflakeDashboardRepository : IDashboardReadRepository
                     COUNT(DISTINCT CASE WHEN EVENT_TYPE = 'overload' THEN TRANSFORMER_ID END) AS OVERLOAD_TRANSFORMERS,
                     COUNT(DISTINCT CASE WHEN EVENT_TYPE = 'line_drop' THEN TRANSFORMER_ID END) AS LINEDROP_TRANSFORMERS,
                     COUNT(DISTINCT TRANSFORMER_ID) AS AFFECTED_TRANSFORMERS
-                FROM ANOMALY_FLAGS
+                FROM {{SnowflakeQuery.AnomalyEvents}} e
                 WHERE DATE(END_TS) >= :1 AND DATE(END_TS) <= :2
             ),
             freshness AS (

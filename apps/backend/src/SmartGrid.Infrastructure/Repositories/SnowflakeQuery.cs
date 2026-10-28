@@ -15,6 +15,48 @@ namespace SmartGrid.Infrastructure.Repositories;
 /// </summary>
 internal sealed class SnowflakeQuery
 {
+    /// <summary>
+    /// ANOMALY_FLAGS has one row per flagged 15-minute reading, each with a rolling window
+    /// (e.g. 00:00–03:45, 00:15–04:00, …), so one real problem appears as many rows.
+    /// This derived table merges overlapping or touching windows of the same transformer and
+    /// event type into ONE event — the unit the dashboard, map and alert log count.
+    /// Columns: ANOMALY_ID (first row's ID), EVENT_TYPE, ENTITY_ID, TRANSFORMER_ID,
+    /// START_TS (first start), END_TS (last end), FLAG_ROWS (rows merged).
+    /// Use as <c>FROM {AnomalyEvents} a</c>.
+    /// </summary>
+    public const string AnomalyEvents = """
+        (
+            SELECT
+                MIN_BY(ANOMALY_ID, START_TS) AS ANOMALY_ID,
+                EVENT_TYPE,
+                MIN_BY(ENTITY_ID, START_TS) AS ENTITY_ID,
+                TRANSFORMER_ID,
+                MIN(START_TS) AS START_TS,
+                MAX(END_TS) AS END_TS,
+                COUNT(*) AS FLAG_ROWS
+            FROM (
+                SELECT
+                    s.*,
+                    SUM(CASE WHEN s.PREV_END IS NULL OR s.START_TS > s.PREV_END THEN 1 ELSE 0 END)
+                        OVER (PARTITION BY s.TRANSFORMER_ID, s.EVENT_TYPE ORDER BY s.START_TS, s.ANOMALY_ID
+                              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS EVENT_NO
+                FROM (
+                    SELECT
+                        r.*,
+                        LAG(r.RUN_END) OVER (PARTITION BY r.TRANSFORMER_ID, r.EVENT_TYPE ORDER BY r.START_TS, r.ANOMALY_ID) AS PREV_END
+                    FROM (
+                        SELECT
+                            ANOMALY_ID, EVENT_TYPE, ENTITY_ID, TRANSFORMER_ID, START_TS, END_TS,
+                            MAX(END_TS) OVER (PARTITION BY TRANSFORMER_ID, EVENT_TYPE ORDER BY START_TS, ANOMALY_ID
+                                              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS RUN_END
+                        FROM ANOMALY_FLAGS
+                    ) r
+                ) s
+            ) g
+            GROUP BY TRANSFORMER_ID, EVENT_TYPE, EVENT_NO
+        )
+        """;
+
     private readonly DbCommand _command;
     private int _nextIndex = 1;
 

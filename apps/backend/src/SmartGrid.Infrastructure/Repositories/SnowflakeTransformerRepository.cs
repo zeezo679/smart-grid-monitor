@@ -9,16 +9,16 @@ namespace SmartGrid.Infrastructure.Repositories;
 /// <summary>
 /// Snowflake repository for transformer lookups.
 /// <list type="bullet">
-/// <item>List / details: DIM_TRANSFORMERS + KPI_TRANSFORMER_PEAK + alert counts from ANOMALY_FLAGS.</item>
+/// <item>List / details: DIM_TRANSFORMERS + KPI_TRANSFORMER_PEAK + alert (event) counts from ANOMALY_FLAGS.</item>
 /// <item>Readings and hourly load profile: FACT_TRANSFORMER_READINGS.</item>
 /// </list>
 /// </summary>
 public sealed class SnowflakeTransformerRepository : ITransformerReadRepository
 {
-    private const string AlertCountsCte = """
+    private const string AlertCountsCte = $$"""
         WITH alert_counts AS (
             SELECT TRANSFORMER_ID, COUNT(*) AS ALERT_COUNT
-            FROM ANOMALY_FLAGS
+            FROM {{SnowflakeQuery.AnomalyEvents}} e
             GROUP BY TRANSFORMER_ID
         )
         """;

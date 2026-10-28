@@ -10,13 +10,14 @@ namespace SmartGrid.Infrastructure.Repositories;
 
 /// <summary>
 /// Snowflake repository for the alert log.
-/// Reads MARTS.ANOMALY_FLAGS and joins DIM_TRANSFORMERS for district and governorate.
+/// Reads MARTS.ANOMALY_FLAGS merged into events (see <see cref="SnowflakeQuery.AnomalyEvents"/>)
+/// and joins DIM_TRANSFORMERS for district and governorate.
 /// An alert falls in a period when its window overlaps it (START_TS before the period ends,
 /// END_TS after it starts) — the same rule the map uses.
 /// </summary>
 public sealed class SnowflakeAlertRepository : IAlertReadRepository
 {
-    private const string SelectColumns = """
+    private const string SelectColumns = $$"""
         SELECT
             a.ANOMALY_ID,
             a.EVENT_TYPE,
@@ -26,7 +27,7 @@ public sealed class SnowflakeAlertRepository : IAlertReadRepository
             t.GOVERNORATE,
             a.START_TS,
             a.END_TS
-        FROM ANOMALY_FLAGS a
+        FROM {{SnowflakeQuery.AnomalyEvents}} a
         LEFT JOIN DIM_TRANSFORMERS t ON a.TRANSFORMER_ID = t.TRANSFORMER_ID
         """;
 
@@ -59,7 +60,7 @@ public sealed class SnowflakeAlertRepository : IAlertReadRepository
             var where = BuildWhere(new SnowflakeQuery(countCmd), criteria);
             countCmd.CommandText = $"""
                 SELECT COUNT(*)
-                FROM ANOMALY_FLAGS a
+                FROM {SnowflakeQuery.AnomalyEvents} a
                 LEFT JOIN DIM_TRANSFORMERS t ON a.TRANSFORMER_ID = t.TRANSFORMER_ID
                 {where}
                 """;
@@ -125,7 +126,7 @@ public sealed class SnowflakeAlertRepository : IAlertReadRepository
                 EVENT_TYPE,
                 COUNT(*) AS TOTAL_ALERTS,
                 COUNT(DISTINCT TRANSFORMER_ID) AS AFFECTED_TRANSFORMERS
-            FROM ANOMALY_FLAGS
+            FROM {SnowflakeQuery.AnomalyEvents} a
             WHERE START_TS < {end} AND END_TS >= {start}
             GROUP BY EVENT_TYPE
             """;
