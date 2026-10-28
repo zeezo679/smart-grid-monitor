@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { MapMarker, ThreatType } from '../types';
@@ -48,9 +48,25 @@ function getMarkerStyle(marker: MapMarker, activeTypeFilter?: ThreatType | '') {
 /**
  * Creates custom Leaflet DivIcon for a transformer marker.
  */
-function createCustomMarkerIcon(marker: MapMarker, isSelected: boolean, activeTypeFilter?: ThreatType | '') {
+const MIN_MARKER_SIZE = 18;
+const MAX_MARKER_SIZE = 34;
+const SELECTED_MARKER_SIZE_OFFSET = 8;
+
+export function getMarkerSizeForZoom(zoom: number): number {
+  return Math.min(MAX_MARKER_SIZE, Math.max(MIN_MARKER_SIZE, 18 + (zoom - 8) * 2));
+}
+
+function createCustomMarkerIcon(
+  marker: MapMarker,
+  isSelected: boolean,
+  activeTypeFilter: ThreatType | '' | undefined,
+  zoom: number,
+) {
   const { bg, ring, label } = getMarkerStyle(marker, activeTypeFilter);
-  const size = isSelected ? 34 : 26;
+  const baseSize = getMarkerSizeForZoom(zoom);
+  const size = isSelected
+    ? Math.min(MAX_MARKER_SIZE + SELECTED_MARKER_SIZE_OFFSET, baseSize + SELECTED_MARKER_SIZE_OFFSET)
+    : baseSize;
   const pulseClass = isSelected ? 'ring-4 ring-white ring-offset-2 ring-offset-grid-bg animate-pulse' : '';
 
   const html = `
@@ -66,6 +82,65 @@ function createCustomMarkerIcon(marker: MapMarker, isSelected: boolean, activeTy
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -size / 2],
   });
+}
+
+function ZoomResponsiveMarker({
+  marker,
+  isSelected,
+  activeTypeFilter,
+  onSelectMarker,
+}: {
+  marker: MapMarker;
+  isSelected: boolean;
+  activeTypeFilter?: ThreatType | '';
+  onSelectMarker: (marker: MapMarker) => void;
+}) {
+  const map = useMap();
+  const markerRef = useRef<L.Marker | null>(null);
+
+  useEffect(() => {
+    const updateMarkerSize = () => {
+      markerRef.current?.setIcon(
+        createCustomMarkerIcon(marker, isSelected, activeTypeFilter, map.getZoom()),
+      );
+    };
+
+    map.on('zoomend', updateMarkerSize);
+    return () => {
+      map.off('zoomend', updateMarkerSize);
+    };
+  }, [activeTypeFilter, isSelected, map, marker]);
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={[marker.latitude, marker.longitude]}
+      icon={createCustomMarkerIcon(marker, isSelected, activeTypeFilter, map.getZoom())}
+      eventHandlers={{
+        click: () => onSelectMarker(marker),
+      }}
+    >
+      <Popup className="custom-leaflet-popup">
+        <div className="p-1 text-xs">
+          <div className="font-mono font-semibold text-gray-900">
+            {marker.transformerId}
+          </div>
+          <div className="text-gray-600 text-[11px]">
+            {marker.district} • {marker.capacityKw} kW
+          </div>
+          <div className="mt-1 font-medium text-gray-800">
+            {marker.totalAlertCount > 0 ? (
+              <span className="text-red-600 font-semibold">
+                {marker.totalAlertCount} alert window{marker.totalAlertCount !== 1 ? 's' : ''}
+              </span>
+            ) : (
+              <span className="text-emerald-600">No alerts</span>
+            )}
+          </div>
+        </div>
+      </Popup>
+    </Marker>
+  );
 }
 
 /**
@@ -108,16 +183,6 @@ export function TransformerMap({
   activeTypeFilter,
   onSelectMarker,
 }: TransformerMapProps) {
-  // Pre-generate icons to avoid recreating on each render
-  const markerIcons = useMemo(() => {
-    const map = new Map<string, L.DivIcon>();
-    markers.forEach((m) => {
-      const isSelected = selectedMarker?.transformerId === m.transformerId;
-      map.set(m.transformerId, createCustomMarkerIcon(m, isSelected, activeTypeFilter));
-    });
-    return map;
-  }, [markers, selectedMarker, activeTypeFilter]);
-
   return (
     <div className="relative h-[480px] sm:h-[560px] w-full rounded-lg overflow-hidden border border-grid-border shadow-inner">
       <MapContainer
@@ -134,41 +199,15 @@ export function TransformerMap({
 
         <MapViewUpdater selectedMarker={selectedMarker} markers={markers} />
 
-        {markers.map((marker) => {
-          const icon = markerIcons.get(marker.transformerId);
-          if (!icon) return null;
-
-          return (
-            <Marker
-              key={marker.transformerId}
-              position={[marker.latitude, marker.longitude]}
-              icon={icon}
-              eventHandlers={{
-                click: () => onSelectMarker(marker),
-              }}
-            >
-              <Popup className="custom-leaflet-popup">
-                <div className="p-1 text-xs">
-                  <div className="font-mono font-semibold text-gray-900">
-                    {marker.transformerId}
-                  </div>
-                  <div className="text-gray-600 text-[11px]">
-                    {marker.district} • {marker.capacityKw} kW
-                  </div>
-                  <div className="mt-1 font-medium text-gray-800">
-                    {marker.totalAlertCount > 0 ? (
-                      <span className="text-red-600 font-semibold">
-                        {marker.totalAlertCount} alert window{marker.totalAlertCount !== 1 ? 's' : ''}
-                      </span>
-                    ) : (
-                      <span className="text-emerald-600">No alerts</span>
-                    )}
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+        {markers.map((marker) => (
+          <ZoomResponsiveMarker
+            key={marker.transformerId}
+            marker={marker}
+            isSelected={selectedMarker?.transformerId === marker.transformerId}
+            activeTypeFilter={activeTypeFilter}
+            onSelectMarker={onSelectMarker}
+          />
+        ))}
       </MapContainer>
     </div>
   );

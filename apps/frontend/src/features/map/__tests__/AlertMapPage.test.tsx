@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AlertMapPage } from '../pages/AlertMapPage';
+import { getMarkerSizeForZoom } from '../components/TransformerMap';
 import type { MapMarker } from '../types';
 
 // Mock the API layer directly
@@ -99,6 +100,13 @@ afterEach(() => {
 });
 
 describe('AlertMapPage', () => {
+  it('scales marker sizes with zoom while respecting visibility bounds', () => {
+    expect(getMarkerSizeForZoom(4)).toBe(18);
+    expect(getMarkerSizeForZoom(12)).toBe(26);
+    expect(getMarkerSizeForZoom(18)).toBe(34);
+    expect(getMarkerSizeForZoom(14)).toBeGreaterThan(getMarkerSizeForZoom(10));
+  });
+
   it('renders successfully with map header and filters', async () => {
     mockedFetchMapMarkers.mockResolvedValue(mockMarkers);
 

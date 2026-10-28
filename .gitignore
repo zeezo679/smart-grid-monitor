@@ -41,3 +41,5 @@ Thumbs.db
 *:Zone.Identifier
 
 apps/frontend/node_modules
+apps/backend/rsa_key.p8
+apps/backend/rsa_key.pub
