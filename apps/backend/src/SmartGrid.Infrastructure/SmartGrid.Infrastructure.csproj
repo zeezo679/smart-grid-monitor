@@ -4,6 +4,10 @@
     <ProjectReference Include="..\SmartGrid.Application\SmartGrid.Application.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Snowflake.Data" Version="6.4.0" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

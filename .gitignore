@@ -39,3 +39,5 @@ logs/
 .DS_Store
 Thumbs.db
 *:Zone.Identifier
+
+apps/frontend/node_modules

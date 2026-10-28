@@ -20,19 +20,24 @@ apps/backend/
 │
 ├── src/
 │   ├── SmartGrid.Api/                      # ASP.NET Core Web API
+│   │   ├── Common/
+│   │   │   └── DateRangeQueryParser.cs     # Query validation & parsing
 │   │   ├── Controllers/
-│   │   │   └── HealthController.cs
-│   │   ├── Program.cs
+│   │   │   ├── HealthController.cs         # GET /api/health
+│   │   │   └── DashboardController.cs      # GET /api/dashboard/summary & demand
+│   │   ├── Program.cs                      # Dependency injection & pipeline
 │   │   ├── appsettings.json
 │   │   └── SmartGrid.Api.csproj
 │   │
-│   ├── SmartGrid.Application/             # DTOs, query models, repository interfaces
+│   ├── SmartGrid.Application/             # DTOs, services, repository interfaces
 │   │   ├── Abstractions/
 │   │   │   ├── Persistence/               # Repository interfaces
 │   │   │   └── Time/                      # IDateTimeProvider
 │   │   ├── Common/
-│   │   │   └── Models/                    # DateRange, PageRequest, PagedResult<T>
+│   │   │   └── Models/                    # DateRange (with 366 max days), PageRequest, PagedResult<T>
 │   │   ├── Dashboard/
+│   │   │   ├── IDashboardService.cs       # Application service interface
+│   │   │   ├── DashboardService.cs        # Application service implementation
 │   │   │   └── Models/                    # DashboardOverviewDto, DailyDemandPointDto
 │   │   ├── Alerts/
 │   │   │   ├── Models/                    # AlertDto, AlertSummaryByTypeDto, EventTypes
@@ -48,7 +53,9 @@ apps/backend/
 │       └── SmartGrid.Infrastructure.csproj
 │
 ├── tests/
-│   └── SmartGrid.Application.Tests/       # Unit tests for shared models & validation
+│   ├── SmartGrid.Api.Tests/               # Controller & endpoint validation tests
+│   │   └── SmartGrid.Api.Tests.csproj
+│   └── SmartGrid.Application.Tests/       # Unit tests for shared models & services
 │       └── SmartGrid.Application.Tests.csproj
 │
 └── API_CONTRACT.md                        # This document
@@ -309,40 +316,62 @@ These will be verified by the teammate implementing the Snowflake repository.
 
 ## 15. Mock & Snowflake Provider Strategy
 
-Both providers implement the same four repository interfaces:
+Both providers implement the same repository interfaces from `SmartGrid.Application.Abstractions.Persistence`.
 
-```
-IDashboardReadRepository
-IAlertReadRepository
-ITransformerReadRepository
-IAccuracyReadRepository
-```
+### 15.1 Provider Selection Configuration
 
-### Mock Provider (Infrastructure)
+Provider selection is configured centrally in `appsettings.json` or environment variables:
 
-- Returns deterministic, hardcoded data.
-- No external dependencies.
-- Used during frontend development and integration testing.
-- Respects pagination and date-range filtering with in-memory LINQ.
-
-### Snowflake Provider (Infrastructure)
-
-- Uses the Snowflake .NET driver.
-- Executes parameterised SQL against the warehouse models.
-- Performs the alert ↔ dim_transformers join server-side.
-- Connection string provided via configuration, never committed to source control.
-
-Both will be registered via dependency injection in `Program.cs`:
-
-```csharp
-// Example (to be implemented in a later milestone):
-// builder.Services.AddScoped<IDashboardReadRepository, MockDashboardRepository>();
-// — or —
-// builder.Services.AddScoped<IDashboardReadRepository, SnowflakeDashboardRepository>();
+```json
+{
+  "DataSource": {
+    "Provider": "Mock"
+  },
+  "ConnectionStrings": {
+    "Snowflake": ""
+  }
+}
 ```
 
-Provider selection will be controlled by configuration (e.g., `DataProvider:Type` in
-`appsettings.json` or environment variables).
+- Supported `DataSource:Provider` values: `"Mock"` (default) and `"Snowflake"`.
+- When set to `"Mock"`: registers `MockDashboardRepository`.
+- When set to `"Snowflake"`: reads `ConnectionStrings:Snowflake`. If missing or empty, throws a clear `InvalidOperationException`. Registers `SnowflakeDashboardRepository`.
+- Rejects any unknown provider name during startup with an informative configuration error.
+- Registered in `Program.cs` via:
+  ```csharp
+  builder.Services.AddSmartGridInfrastructure(builder.Configuration);
+  ```
+
+### 15.2 Protecting Snowflake Credentials
+
+- The repository does **not** commit real connection strings to source control.
+- In local development, configure user secrets for `SmartGrid.Api`:
+  ```bash
+  cd apps/backend/src/SmartGrid.Api
+  dotnet user-secrets set "ConnectionStrings:Snowflake" "<private-connection-string>"
+  ```
+- In production/CI, supply through environment variable `ConnectionStrings__Snowflake`.
+
+### 15.3 Mock Dashboard Provider
+
+- Located in `SmartGrid.Infrastructure.Repositories.MockDashboardRepository`.
+- Uses deterministic, internally consistent fixtures in `SmartGrid.Infrastructure.Data.MockDashboardData`.
+- Simulation dates: August 1 and August 2, 2026.
+- Dynamic aggregation ensures totals and distinct counts agree across summary and demand endpoints.
+- When an empty range is queried, returns `null` for overview metrics and empty collection `[]` for daily demand.
+
+### 15.4 Snowflake Dashboard Provider
+
+- Located in `SmartGrid.Infrastructure.Repositories.SnowflakeDashboardRepository`.
+- Uses official driver `Snowflake.Data` (v6.4.0).
+- Uses parameterized queries (`:startDate`, `:endDate`) against:
+  - `KPI_DAILY_DEMAND`
+  - `ANOMALY_FLAGS`
+  - `FACT_TRANSFORMER_READINGS`
+- Does not open a database connection during service provider construction.
+- Timestamps are explicitly treated as UTC.
+- Cancellation tokens are propagated to driver operations.
+- Errors are not swallowed into fake successful results.
 
 ---
 
@@ -371,3 +400,135 @@ Returns:
 ```
 
 This confirms the API process is running. It does **not** verify Snowflake connectivity.
+
+---
+
+## 18. Dashboard Endpoints (Milestone 2)
+
+### 18.1 GET /api/dashboard/summary
+
+Retrieves overview metrics for the specified inclusive date range.
+
+#### Query Parameters
+
+| Parameter | Type   | Required | Format       | Description                     |
+|-----------|--------|----------|--------------|---------------------------------|
+| `from`    | string | Yes      | `YYYY-MM-DD` | Inclusive start of query window |
+| `to`      | string | Yes      | `YYYY-MM-DD` | Inclusive end of query window   |
+
+#### Success Response (HTTP 200 OK)
+
+```json
+{
+  "periodStart": "2026-08-01",
+  "periodEnd": "2026-08-02",
+  "totalEnergyKwh": 125430.75,
+  "peakNetworkKw": 8450.20,
+  "totalAlerts": 14,
+  "theftTransformers": 3,
+  "overloadTransformers": 5,
+  "linedropTransformers": 2,
+  "affectedTransformers": 8,
+  "latestReadingTimestamp": "2026-08-02T23:45:00+00:00"
+}
+```
+
+*Note: All metric fields are nullable when warehouse records are not present for the requested period.*
+
+---
+
+### 18.2 GET /api/dashboard/demand
+
+Retrieves daily energy delivery and peak network power for each day within the requested inclusive date range, ordered by `demandDate` ascending.
+
+#### Query Parameters
+
+| Parameter | Type   | Required | Format       | Description                     |
+|-----------|--------|----------|--------------|---------------------------------|
+| `from`    | string | Yes      | `YYYY-MM-DD` | Inclusive start of query window |
+| `to`      | string | Yes      | `YYYY-MM-DD` | Inclusive end of query window   |
+
+#### Success Response (HTTP 200 OK)
+
+```json
+[
+  {
+    "demandDate": "2026-08-01",
+    "totalDailyKwh": 61200.50,
+    "peakNetworkKw": 8320.10
+  },
+  {
+    "demandDate": "2026-08-02",
+    "totalDailyKwh": 64230.25,
+    "peakNetworkKw": 8450.20
+  }
+]
+```
+
+---
+
+### 18.3 Validation and Error Responses
+
+Both endpoints validate query parameters strictly. Any violation returns **HTTP 400 Bad Request** with an RFC 7807 `ProblemDetails` object:
+
+```json
+{
+  "type": null,
+  "title": "Invalid Query Parameters",
+  "status": 400,
+  "detail": "The 'from' query parameter is required.",
+  "instance": "/api/dashboard/summary"
+}
+```
+
+#### Enforced Validation Rules:
+1. **Missing parameters**: Both `from` and `to` are required.
+2. **Date format**: Both dates must strictly follow the ISO 8601 `YYYY-MM-DD` format.
+3. **Ordering**: `from` must be earlier than or equal to `to`.
+4. **Range limit**: The maximum supported query range is **366 days** (inclusive).
+5. **No 500s on bad input**: All bad user inputs are caught and mapped to HTTP 400.
+6. **No fabricated data**: In the event of a repository exception (e.g. database error), the exception propagates rather than returning fabricated defaults.
+
+---
+
+### 18.4 Provider Integration & Testing Guide
+
+The dashboard data integration is fully wired across the Application, Infrastructure, and API layers:
+
+1. **Mock Provider**: Fully implemented in `MockDashboardRepository` with deterministic August 1–2, 2026 fixtures.
+2. **Snowflake Provider**: Fully implemented in `SnowflakeDashboardRepository` with parameterized SQL for `KPI_DAILY_DEMAND`, `ANOMALY_FLAGS`, and `FACT_TRANSFORMER_READINGS`.
+3. **DI Registration**: Managed centrally via `builder.Services.AddSmartGridInfrastructure(builder.Configuration)`.
+
+#### Running Tests
+
+From the repository root or backend solution directory:
+
+```bash
+# Run all unit and integration tests (uses Mock provider, no Snowflake credentials required)
+dotnet test apps/backend/SmartGrid.sln
+```
+
+#### Optional Live Snowflake Smoke Test
+
+Live queries against a real Snowflake account are opt-in to avoid blocking CI or local environments without credentials. To run:
+
+```bash
+export RUN_SNOWFLAKE_INTEGRATION_TESTS=true
+export SNOWFLAKE_CONNECTION_STRING="account=<org-account>;user=<user>;password=<password>;db=SMART_GRID;schema=MARTS;warehouse=COMPUTE_WH"
+
+dotnet test apps/backend/tests/SmartGrid.Api.Tests/ --filter "FullyQualifiedName~SnowflakeLiveSmokeTests"
+```
+
+#### Verified Facts vs Live Warehouse Assumptions
+
+- **Verified Facts**:
+  - `KPI_DAILY_DEMAND` provides pre-aggregated `demand_date`, `total_daily_kwh`, `peak_network_kw`.
+  - `ANOMALY_FLAGS` contains `event_type`, `transformer_id`, and `end_ts`.
+  - Distinct affected transformers across multiple dates cannot be computed by summing daily counts; `COUNT(DISTINCT transformer_id)` in SQL or in-memory sets is required.
+  - Energy is in kWh and power is in kW across both SQL models and C# DTOs (no conversion needed).
+  - All timestamps at the API boundary are formatted in UTC (`DateTimeOffset`).
+- **Live Warehouse Assumptions to Confirm with Credentials**:
+  - The default database and schema in the Snowflake connection string should point to `SMART_GRID.MARTS`.
+  - If table names are case-sensitive in Snowflake (unquoted identifiers default to uppercase), ensure Snowflake session settings resolve `KPI_DAILY_DEMAND`, `ANOMALY_FLAGS`, and `FACT_TRANSFORMER_READINGS`.
+
+

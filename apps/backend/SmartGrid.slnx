@@ -5,6 +5,7 @@
     <Project Path="src/SmartGrid.Infrastructure/SmartGrid.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SmartGrid.Api.Tests/SmartGrid.Api.Tests.csproj" />
     <Project Path="tests/SmartGrid.Application.Tests/SmartGrid.Application.Tests.csproj" />
   </Folder>
 </Solution>
