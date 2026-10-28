@@ -59,6 +59,16 @@
            focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:ring-offset-grid-bg;
   }
 
+  /* Dark basemap: OpenStreetMap tiles are light, so invert them to match the dark UI.
+     Only the tile layer is filtered — markers and popups keep their real colours. */
+  .map-tiles {
+    filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.4);
+  }
+
+  .leaflet-container {
+    @apply bg-grid-bg font-sans;
+  }
+
   .skeleton {
     @apply animate-pulse bg-grid-border rounded;
   }

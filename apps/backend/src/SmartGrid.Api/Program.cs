@@ -1,5 +1,8 @@
+using SmartGrid.Application.Accuracy;
+using SmartGrid.Application.Alerts;
 using SmartGrid.Application.Dashboard;
 using SmartGrid.Application.GridMap;
+using SmartGrid.Application.Transformers;
 using SmartGrid.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,6 +30,9 @@ builder.Services.AddCors(options =>
 // Application services
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IGridMapService, GridMapService>();
+builder.Services.AddScoped<IAlertService, AlertService>();
+builder.Services.AddScoped<ITransformerService, TransformerService>();
+builder.Services.AddScoped<IAccuracyService, AccuracyService>();
 
 // Infrastructure services and data provider selection (Mock / Snowflake)
 builder.Services.AddSmartGridInfrastructure(builder.Configuration);

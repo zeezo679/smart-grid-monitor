@@ -41,5 +41,34 @@ public class SnowflakeLiveSmokeTests
 
         var demandPoints = await repo.GetDailyDemandAsync(period);
         Assert.NotNull(demandPoints);
+
+        // New feature queries: each must run against the live MARTS views without errors.
+        var alertRepo = new SnowflakeAlertRepository(connectionString);
+        var alerts = await alertRepo.SearchAsync(new SmartGrid.Application.Alerts.Queries.AlertSearchCriteria
+        {
+            Period = period,
+            Pagination = new PageRequest(1, 5)
+        });
+        Assert.NotNull(alerts);
+        Assert.Equal(3, (await alertRepo.GetSummaryByTypeAsync(period)).Count);
+
+        var transformerRepo = new SnowflakeTransformerRepository(connectionString);
+        var transformers = await transformerRepo.SearchAsync(new SmartGrid.Application.Transformers.Queries.TransformerSearchCriteria
+        {
+            SortBy = "alerts",
+            Pagination = new PageRequest(1, 5)
+        });
+        Assert.NotEmpty(transformers.Items);
+        var profile = await transformerRepo.GetLoadProfileAsync(transformers.Items[0].TransformerId, period);
+        Assert.NotNull(profile);
+
+        var accuracyRepo = new SnowflakeAccuracyRepository(connectionString);
+        var report = await accuracyRepo.GetReportAsync();
+        Assert.NotNull(report);
+        var details = await accuracyRepo.GetDetailsAsync(new SmartGrid.Application.Accuracy.Queries.AccuracyDetailCriteria
+        {
+            Pagination = new PageRequest(1, 5)
+        });
+        Assert.NotNull(details);
     }
 }

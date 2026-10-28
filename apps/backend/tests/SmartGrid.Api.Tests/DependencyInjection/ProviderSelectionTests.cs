@@ -31,6 +31,9 @@ public class ProviderSelectionTests
         Assert.IsType<MockDashboardRepository>(dashboardRepo);
         Assert.NotNull(gridMapRepo);
         Assert.IsType<MockGridMapRepository>(gridMapRepo);
+        Assert.IsType<MockAlertRepository>(provider.GetRequiredService<IAlertReadRepository>());
+        Assert.IsType<MockTransformerRepository>(provider.GetRequiredService<ITransformerReadRepository>());
+        Assert.IsType<MockAccuracyRepository>(provider.GetRequiredService<IAccuracyReadRepository>());
     }
 
     [Fact]
@@ -81,6 +84,9 @@ public class ProviderSelectionTests
         Assert.IsType<SnowflakeDashboardRepository>(dashboardRepo);
         Assert.NotNull(gridMapRepo);
         Assert.IsType<SnowflakeGridMapRepository>(gridMapRepo);
+        Assert.IsType<SnowflakeAlertRepository>(provider.GetRequiredService<IAlertReadRepository>());
+        Assert.IsType<SnowflakeTransformerRepository>(provider.GetRequiredService<ITransformerReadRepository>());
+        Assert.IsType<SnowflakeAccuracyRepository>(provider.GetRequiredService<IAccuracyReadRepository>());
     }
 
     [Theory]

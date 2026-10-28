@@ -1,4 +1,5 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { cn } from '@/lib/utils';
 import { Menu, X } from 'lucide-react';
@@ -7,8 +8,36 @@ interface AppLayoutProps {
   children: ReactNode;
 }
 
+const COLLAPSED_KEY = 'sgm.sidebarCollapsed';
+
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
 export function AppLayout({ children }: AppLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Collapsed state lives here so the content padding follows the sidebar width.
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const location = useLocation();
+
+  // Close the mobile menu whenever the page changes.
+  useEffect(() => setMobileOpen(false), [location.pathname]);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(COLLAPSED_KEY, String(next));
+      } catch {
+        /* storage unavailable — keep in memory only */
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="min-h-screen bg-grid-bg">
@@ -31,18 +60,17 @@ export function AppLayout({ children }: AppLayoutProps) {
         />
       )}
 
-      {/* Sidebar — hidden on mobile unless toggled */}
-      <div
-        className={cn(
-          'lg:block',
-          mobileOpen ? 'block' : 'hidden',
-        )}
-      >
-        <Sidebar />
+      {/* Sidebar — hidden on mobile unless toggled; always expanded on mobile */}
+      <div className={cn('lg:block', mobileOpen ? 'block' : 'hidden')}>
+        <Sidebar
+          collapsed={collapsed && !mobileOpen}
+          onToggleCollapsed={toggleCollapsed}
+          onNavigate={() => setMobileOpen(false)}
+        />
       </div>
 
-      {/* Main content area — offset by sidebar width */}
-      <main className="lg:pl-56 min-h-screen">
+      {/* Main content — offset by the current sidebar width; top padding clears the mobile menu button */}
+      <main className={cn('min-h-screen pt-12 lg:pt-0 transition-[padding] duration-200', collapsed ? 'lg:pl-16' : 'lg:pl-56')}>
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </div>

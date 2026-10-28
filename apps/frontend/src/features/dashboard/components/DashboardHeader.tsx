@@ -1,5 +1,5 @@
 import { RefreshCw, Clock } from 'lucide-react';
-import { formatRelativeTime } from '@/lib/formatters';
+import { formatRelativeTime, formatTimestamp } from '@/lib/formatters';
 
 interface DashboardHeaderProps {
   dateFrom: string;
@@ -48,7 +48,7 @@ export function DashboardHeader({
             <div className="flex items-center gap-1.5 text-xs text-gray-400" title="Latest transformer reading timestamp from the warehouse">
               <Clock className="h-3 w-3" aria-hidden="true" />
               <span>
-                Data: {latestTimestamp ? formatRelativeTime(latestTimestamp) : 'Unknown'}
+                Latest reading: {latestTimestamp ? formatTimestamp(latestTimestamp) : 'none in period'}
               </span>
             </div>
             {browserRefreshText && (

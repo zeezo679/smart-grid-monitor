@@ -1,6 +1,6 @@
 import { X, ExternalLink, ShieldAlert, AlertTriangle, Activity, Zap, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { formatPowerMw, formatInt, formatDate } from '@/lib/formatters';
+import { formatPowerMw, formatInt, formatDate, formatTimestamp } from '@/lib/formatters';
 import type { MapMarker } from '../types';
 
 interface TransformerDetailPanelProps {
@@ -26,7 +26,7 @@ export function TransformerDetailPanel({
     : '—';
 
   const latestAlertDisplay = marker.latestAlertAt
-    ? new Date(marker.latestAlertAt).toLocaleString()
+    ? formatTimestamp(marker.latestAlertAt)
     : 'None';
 
   return (
@@ -116,7 +116,7 @@ export function TransformerDetailPanel({
           <div className="rounded-lg border border-status-linedrop/30 bg-status-linedrop/10 p-2">
             <div className="flex items-center justify-center gap-1 text-status-linedrop text-[11px] font-medium">
               <Activity className="h-3 w-3" aria-hidden="true" />
-              <span>Line Drop</span>
+              <span>Voltage Drop</span>
             </div>
             <p className="mt-1 text-base font-semibold text-status-linedrop font-mono">
               {formatInt(marker.lineDropAlertCount)}

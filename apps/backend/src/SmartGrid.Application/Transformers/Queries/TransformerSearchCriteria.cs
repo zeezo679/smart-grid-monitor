@@ -25,6 +25,9 @@ public sealed class TransformerSearchCriteria
     /// <summary>When true, returns only transformers with at least one detected alert.</summary>
     public bool OnlyWithAlerts { get; init; }
 
+    /// <summary>Sort key from <see cref="TransformerSortOptions"/>; defaults to transformer ID.</summary>
+    public string SortBy { get; init; } = TransformerSortOptions.Id;
+
     /// <summary>Pagination request.</summary>
     public required PageRequest Pagination { get; init; }
 }

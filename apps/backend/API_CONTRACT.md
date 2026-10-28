@@ -311,7 +311,7 @@ Snowflake schema:
 | Row counts | `dim_transformers` — confirm exactly 500 rows in current data. |
 | Anomaly IDs | Verify format matches pattern `{transformer_id}-{type_code}-{timestamp}`. |
 
-These will be verified by the teammate implementing the Snowflake repository.
+Verified against the live warehouse: see [SNOWFLAKE_SETUP.md](SNOWFLAKE_SETUP.md#3-verified-schema-answers-to-api_contract-section-14).
 
 ---
 
@@ -396,11 +396,13 @@ Returns:
 {
   "status": "healthy",
   "timestamp": "2024-05-15T12:00:00+00:00",
-  "service": "SmartGrid.Api"
+  "service": "SmartGrid.Api",
+  "dataProvider": "Snowflake"
 }
 ```
 
-This confirms the API process is running. It does **not** verify Snowflake connectivity.
+This confirms the API process is running and which provider is active (`Mock` or `Snowflake`).
+It does **not** open a Snowflake connection.
 
 ---
 
@@ -644,5 +646,35 @@ Transformers without valid geographic coordinates are never returned as usable m
    - When `onlyWithAlerts=false`: transformers without alerts in the period still appear (with counts = 0 and `latestAlertAt = null`). If a `type` filter is active, non-alert transformers appear alongside transformers matching the specified threat type.
 5. **Historical Peak Metrics**: `peakKwRecorded` and `peakLoadPercentage` are sourced from `KPI_TRANSFORMER_PEAK` and represent historical maxima over all available warehouse records. They are explicitly not real-time loads.
 
+---
 
+## 20. Alert Log, Transformers & Accuracy APIs
 
+All endpoints return camelCase JSON; timestamps are ISO 8601 UTC. Paged endpoints return
+`{ items, page, pageSize, totalCount, totalPages }` (`page` ≥ 1, `pageSize` 1–100, default 25).
+Invalid query values return `400` ProblemDetails; unknown IDs return `404`.
+
+### Alerts (`MARTS.ANOMALY_FLAGS` ⋈ `DIM_TRANSFORMERS`)
+
+| Endpoint | Query | Notes |
+|---|---|---|
+| `GET /api/alerts` | `from`, `to` (optional, both or neither), `type`, `district`, `transformerId` (partial match), `page`, `pageSize` | Newest first. An alert is in the period when its window overlaps it (same rule as the map). |
+| `GET /api/alerts/summary` | `from`, `to` (required) | Always 3 rows: `{ eventType, totalAlerts, affectedTransformers }`. |
+| `GET /api/alerts/{anomalyId}` | — | One `AlertDto`. |
+
+### Transformers (`DIM_TRANSFORMERS`, `KPI_TRANSFORMER_PEAK`, `FACT_TRANSFORMER_READINGS`)
+
+| Endpoint | Query | Notes |
+|---|---|---|
+| `GET /api/transformers` | `search`, `district`, `governorate`, `feederId`, `substationId`, `onlyWithAlerts`, `sort` = `id` \| `alerts` \| `load`, `page`, `pageSize` | `alertCount` is all-time; invalid coordinates are excluded (same rule as the map). |
+| `GET /api/transformers/peaks` | `district`, `page`, `pageSize` | Highest `peakLoadPercentage` first. |
+| `GET /api/transformers/{id}` | — | `TransformerDetailsDto`. |
+| `GET /api/transformers/{id}/load-profile` | `from`, `to` (max 31 days) | Hourly buckets: `{ hourTimestamp, avgKw, maxKw, energyKwh, avgVoltage, minVoltage, readingCount }`. |
+| `GET /api/transformers/{id}/readings` | `from`, `to`, `page`, `pageSize` | Raw 15-minute readings, oldest first. |
+
+### Accuracy (`ACCURACY_SUMMARY`, `ACCURACY_METRICS`)
+
+| Endpoint | Query | Notes |
+|---|---|---|
+| `GET /api/accuracy` | — | Per type + overall TP/FP/FN. `precision` / `recall` are **0–1 ratios recomputed from the counts** (null when undefined). |
+| `GET /api/accuracy/details` | `type`, `status` (`True Positive` \| `False Positive` \| `False Negative`), `transformerId`, `page`, `pageSize` | Truth window vs detected window per row. |

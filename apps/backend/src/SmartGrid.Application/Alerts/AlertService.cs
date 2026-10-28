@@ -46,4 +46,12 @@ public sealed class AlertService : IAlertService
 
         return _repository.GetByIdAsync(anomalyId, cancellationToken);
     }
+
+    public Task<IReadOnlyList<AlertSummaryByTypeDto>> GetSummaryByTypeAsync(
+        DateRange period,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(period);
+        return _repository.GetSummaryByTypeAsync(period, cancellationToken);
+    }
 }

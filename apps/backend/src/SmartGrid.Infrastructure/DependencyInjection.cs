@@ -35,6 +35,9 @@ public static class DependencyInjection
         {
             services.AddScoped<IDashboardReadRepository, MockDashboardRepository>();
             services.AddScoped<IGridMapReadRepository, MockGridMapRepository>();
+            services.AddScoped<IAlertReadRepository, MockAlertRepository>();
+            services.AddScoped<ITransformerReadRepository, MockTransformerRepository>();
+            services.AddScoped<IAccuracyReadRepository, MockAccuracyRepository>();
         }
         else if (string.Equals(provider, "Snowflake", StringComparison.OrdinalIgnoreCase))
         {
@@ -49,6 +52,9 @@ public static class DependencyInjection
 
             services.AddScoped<IDashboardReadRepository>(_ => new SnowflakeDashboardRepository(connectionString));
             services.AddScoped<IGridMapReadRepository>(_ => new SnowflakeGridMapRepository(connectionString));
+            services.AddScoped<IAlertReadRepository>(_ => new SnowflakeAlertRepository(connectionString));
+            services.AddScoped<ITransformerReadRepository>(_ => new SnowflakeTransformerRepository(connectionString));
+            services.AddScoped<IAccuracyReadRepository>(_ => new SnowflakeAccuracyRepository(connectionString));
         }
         else
         {

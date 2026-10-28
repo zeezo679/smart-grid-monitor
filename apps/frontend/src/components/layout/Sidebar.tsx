@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
@@ -16,19 +15,26 @@ interface NavItem {
   label: string;
   path: string;
   icon: React.ElementType;
-  enabled: boolean;
+  /** Extra paths that should also highlight this item. */
+  aliases?: string[];
 }
 
 const navigation: NavItem[] = [
-  { label: 'Overview', path: '/', icon: LayoutDashboard, enabled: true },
-  { label: 'Alert Map', path: '/alerts/map', icon: Map, enabled: true },
-  { label: 'Alert Log', path: '/alert-log', icon: Bell, enabled: false },
-  { label: 'Transformers', path: '/transformers', icon: Cpu, enabled: false },
-  { label: 'Accuracy', path: '/accuracy', icon: Target, enabled: false },
+  { label: 'Overview', path: '/', icon: LayoutDashboard },
+  { label: 'Alert Map', path: '/alerts/map', icon: Map, aliases: ['/alert-map'] },
+  { label: 'Alert Log', path: '/alert-log', icon: Bell, aliases: ['/alerts'] },
+  { label: 'Transformers', path: '/transformers', icon: Cpu },
+  { label: 'Accuracy', path: '/accuracy', icon: Target },
 ];
 
-export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+interface SidebarProps {
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+  /** Called after a link is clicked (closes the mobile menu). */
+  onNavigate?: () => void;
+}
+
+export function Sidebar({ collapsed, onToggleCollapsed, onNavigate }: SidebarProps) {
   const location = useLocation();
 
   return (
@@ -56,37 +62,14 @@ export function Sidebar() {
           const Icon = item.icon;
           const isActive =
             location.pathname === item.path ||
-            (item.path === '/alerts/map' &&
-              (location.pathname === '/alert-map' || location.pathname.startsWith('/alerts/map')));
-
-          if (!item.enabled) {
-            return (
-              <div
-                key={item.path}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-600 cursor-not-allowed',
-                  collapsed && 'justify-center px-0',
-                )}
-                title={collapsed ? `${item.label} (Coming soon)` : undefined}
-                aria-disabled="true"
-              >
-                <Icon className="h-4.5 w-4.5 shrink-0" aria-hidden="true" />
-                {!collapsed && (
-                  <>
-                    <span>{item.label}</span>
-                    <span className="ml-auto text-[10px] uppercase tracking-wider text-gray-700">
-                      Soon
-                    </span>
-                  </>
-                )}
-              </div>
-            );
-          }
+            (item.path !== '/' && location.pathname.startsWith(`${item.path}/`)) ||
+            (item.aliases ?? []).includes(location.pathname);
 
           return (
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={onNavigate}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150',
                 isActive
@@ -104,10 +87,10 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Collapse toggle */}
-      <div className="border-t border-grid-border p-2">
+      {/* Collapse toggle (desktop only — on mobile the menu button controls the sidebar) */}
+      <div className="hidden border-t border-grid-border p-2 lg:block">
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={onToggleCollapsed}
           className="btn-ghost w-full justify-center"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           type="button"

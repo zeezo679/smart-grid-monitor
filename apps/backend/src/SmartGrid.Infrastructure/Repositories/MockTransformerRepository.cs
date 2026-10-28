@@ -59,7 +59,14 @@ public sealed class MockTransformerRepository : ITransformerReadRepository
                 AlertCountsByTransformer.Value.TryGetValue(t.TransformerId, out var count) && count > 0);
         }
 
-        var ordered = query.OrderBy(t => t.TransformerId).ToList();
+        int AlertsOf(string id) => AlertCountsByTransformer.Value.TryGetValue(id, out var c) ? c : 0;
+
+        var ordered = (criteria.SortBy switch
+        {
+            TransformerSortOptions.Alerts => query.OrderByDescending(t => AlertsOf(t.TransformerId)).ThenBy(t => t.TransformerId),
+            TransformerSortOptions.Load => query.OrderByDescending(t => t.PeakLoadPercentage ?? decimal.MinValue).ThenBy(t => t.TransformerId),
+            _ => query.OrderBy(t => t.TransformerId),
+        }).ToList();
         var totalCount = ordered.Count;
 
         var pagedItems = ordered
@@ -132,6 +139,10 @@ public sealed class MockTransformerRepository : ITransformerReadRepository
 
         var peaks = MockGridMapData.Transformers
             .Where(t => t.PeakKwRecorded.HasValue && t.PeakLoadPercentage.HasValue)
+            .Where(t => string.IsNullOrWhiteSpace(criteria.District)
+                || string.Equals(t.District, criteria.District.Trim(), StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(t => t.PeakLoadPercentage)
+            .ThenBy(t => t.TransformerId)
             .Select(t => new TransformerPeakDto(
                 t.TransformerId,
                 t.District,
@@ -140,8 +151,13 @@ public sealed class MockTransformerRepository : ITransformerReadRepository
                 t.PeakLoadPercentage!.Value))
             .ToList();
 
+        var pagedPeaks = peaks
+            .Skip((criteria.Pagination.Page - 1) * criteria.Pagination.PageSize)
+            .Take(criteria.Pagination.PageSize)
+            .ToList();
+
         return Task.FromResult(new PagedResult<TransformerPeakDto>(
-            peaks,
+            pagedPeaks,
             criteria.Pagination.Page,
             criteria.Pagination.PageSize,
             peaks.Count));
@@ -153,6 +169,55 @@ public sealed class MockTransformerRepository : ITransformerReadRepository
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(criteria);
-        return Task.FromResult(PagedResult<TransformerReadingDto>.Empty(criteria.Pagination.Page, criteria.Pagination.PageSize));
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var inRange = InPeriod(criteria.TransformerId, criteria.Period);
+        var page = inRange
+            .Skip((criteria.Pagination.Page - 1) * criteria.Pagination.PageSize)
+            .Take(criteria.Pagination.PageSize)
+            .ToList();
+
+        return Task.FromResult(new PagedResult<TransformerReadingDto>(
+            page,
+            criteria.Pagination.Page,
+            criteria.Pagination.PageSize,
+            inRange.Count));
+    }
+
+    public Task<IReadOnlyList<TransformerLoadPointDto>> GetLoadProfileAsync(
+        string transformerId,
+        DateRange period,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(transformerId);
+        ArgumentNullException.ThrowIfNull(period);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Same hourly aggregation as the Snowflake query (DATE_TRUNC('HOUR', READING_TS)).
+        IReadOnlyList<TransformerLoadPointDto> points = InPeriod(transformerId, period)
+            .GroupBy(r => new DateTimeOffset(r.ReadingTimestamp.Year, r.ReadingTimestamp.Month, r.ReadingTimestamp.Day,
+                r.ReadingTimestamp.Hour, 0, 0, TimeSpan.Zero))
+            .OrderBy(g => g.Key)
+            .Select(g => new TransformerLoadPointDto(
+                g.Key,
+                Math.Round(g.Average(r => r.ActivePowerKw), 2),
+                Math.Round(g.Max(r => r.ActivePowerKw), 2),
+                Math.Round(g.Sum(r => r.EnergyKwh), 2),
+                Math.Round(g.Average(r => r.Voltage), 2),
+                Math.Round(g.Min(r => r.Voltage), 2),
+                g.Count()))
+            .ToList();
+
+        return Task.FromResult(points);
+    }
+
+    private static List<TransformerReadingDto> InPeriod(string transformerId, DateRange period)
+    {
+        var start = new DateTimeOffset(period.Start.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var endExclusive = new DateTimeOffset(period.End.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+
+        return MockReadingData.For(transformerId.Trim())
+            .Where(r => r.ReadingTimestamp >= start && r.ReadingTimestamp < endExclusive)
+            .ToList();
     }
 }

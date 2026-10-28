@@ -22,4 +22,8 @@ public interface IAlertService
     Task<AlertDto?> GetByIdAsync(
         string anomalyId,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AlertSummaryByTypeDto>> GetSummaryByTypeAsync(
+        DateRange period,
+        CancellationToken cancellationToken = default);
 }

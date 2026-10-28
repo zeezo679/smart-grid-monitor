@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using System.Text;
 using Snowflake.Data.Client;
 using SmartGrid.Application.Abstractions.Persistence;
@@ -42,7 +43,7 @@ public sealed class SnowflakeGridMapRepository : IGridMapReadRepository
                     EVENT_TYPE,
                     END_TS
                 FROM ANOMALY_FLAGS
-                WHERE START_TS < :endDateExclusive AND END_TS >= :startDateInclusive
+                WHERE START_TS < :2 AND END_TS >= :1
             ),
             alert_agg AS (
                 SELECT
@@ -79,7 +80,7 @@ public sealed class SnowflakeGridMapRepository : IGridMapReadRepository
 
         if (!string.IsNullOrWhiteSpace(criteria.District))
         {
-            sqlBuilder.Append(" AND UPPER(t.DISTRICT) = UPPER(:district)");
+            sqlBuilder.Append(" AND UPPER(t.DISTRICT) = UPPER(:3)");
         }
 
         if (criteria.OnlyWithAlerts)
@@ -126,12 +127,12 @@ public sealed class SnowflakeGridMapRepository : IGridMapReadRepository
         cmd.CommandText = sqlBuilder.ToString();
 
         // Parameterized date boundaries: inclusive start, exclusive end of day
-        AddDateTimeParameter(cmd, "startDateInclusive", criteria.Period.Start.ToDateTime(TimeOnly.MinValue));
-        AddDateTimeParameter(cmd, "endDateExclusive", criteria.Period.End.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        AddDateTimeParameter(cmd, "1", criteria.Period.Start.ToDateTime(TimeOnly.MinValue));
+        AddDateTimeParameter(cmd, "2", criteria.Period.End.AddDays(1).ToDateTime(TimeOnly.MinValue));
 
         if (!string.IsNullOrWhiteSpace(criteria.District))
         {
-            AddStringParameter(cmd, "district", criteria.District.Trim());
+            AddStringParameter(cmd, "3", criteria.District.Trim());
         }
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -154,9 +155,9 @@ public sealed class SnowflakeGridMapRepository : IGridMapReadRepository
                 continue;
             }
 
-            var capacityKw = reader.GetDecimal(7);
-            var peakKwRecorded = reader.IsDBNull(8) ? (decimal?)null : reader.GetDecimal(8);
-            var peakLoadPercentage = reader.IsDBNull(9) ? (decimal?)null : reader.GetDecimal(9);
+            var capacityKw = ReadDecimal(reader, 7);
+            var peakKwRecorded = reader.IsDBNull(8) ? (decimal?)null : ReadDecimal(reader, 8);
+            var peakLoadPercentage = reader.IsDBNull(9) ? (decimal?)null : ReadDecimal(reader, 9);
             var theftCount = reader.IsDBNull(10) ? 0 : Convert.ToInt32(reader[10]);
             var overloadCount = reader.IsDBNull(11) ? 0 : Convert.ToInt32(reader[11]);
             var lineDropCount = reader.IsDBNull(12) ? 0 : Convert.ToInt32(reader[12]);
@@ -206,4 +207,9 @@ public sealed class SnowflakeGridMapRepository : IGridMapReadRepository
         param.Value = value;
         cmd.Parameters.Add(param);
     }
+
+    // Our MARTS numbers are FLOAT (double) in Snowflake. Converting the value works for
+    // FLOAT and NUMBER alike, while GetDecimal can fail on a FLOAT column.
+    private static decimal ReadDecimal(DbDataReader reader, int ordinal)
+        => Convert.ToDecimal(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
 }

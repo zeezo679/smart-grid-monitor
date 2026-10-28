@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { MapMarker, ThreatType } from '../types';
+import { EVENT_TYPES, HEALTHY_COLOR } from '@/lib/event-types';
 
 interface TransformerMapProps {
   markers: MapMarker[];
@@ -20,28 +21,28 @@ const DEFAULT_ZOOM = 12;
 function getMarkerStyle(marker: MapMarker, activeTypeFilter?: ThreatType | '') {
   // If a specific threat filter is active and the transformer has alerts of that type, emphasize it
   if (activeTypeFilter === 'theft' && marker.theftAlertCount > 0) {
-    return { bg: '#EF4444', ring: '#F87171', label: marker.theftAlertCount };
+    return { bg: EVENT_TYPES.theft.color, ring: EVENT_TYPES.theft.ring, label: marker.theftAlertCount };
   }
   if (activeTypeFilter === 'overload' && marker.overloadAlertCount > 0) {
-    return { bg: '#F59E0B', ring: '#FBBF24', label: marker.overloadAlertCount };
+    return { bg: EVENT_TYPES.overload.color, ring: EVENT_TYPES.overload.ring, label: marker.overloadAlertCount };
   }
   if (activeTypeFilter === 'line_drop' && marker.lineDropAlertCount > 0) {
-    return { bg: '#06B6D4', ring: '#22D3EE', label: marker.lineDropAlertCount };
+    return { bg: EVENT_TYPES.line_drop.color, ring: EVENT_TYPES.line_drop.ring, label: marker.lineDropAlertCount };
   }
 
-  // Dominant threat priority: Theft > Overload > Line Drop > Healthy
+  // Dominant threat priority: Theft > Overload > Voltage Drop > Healthy
   if (marker.theftAlertCount > 0) {
-    return { bg: '#EF4444', ring: '#F87171', label: marker.totalAlertCount };
+    return { bg: EVENT_TYPES.theft.color, ring: EVENT_TYPES.theft.ring, label: marker.totalAlertCount };
   }
   if (marker.overloadAlertCount > 0) {
-    return { bg: '#F59E0B', ring: '#FBBF24', label: marker.totalAlertCount };
+    return { bg: EVENT_TYPES.overload.color, ring: EVENT_TYPES.overload.ring, label: marker.totalAlertCount };
   }
   if (marker.lineDropAlertCount > 0) {
-    return { bg: '#06B6D4', ring: '#22D3EE', label: marker.totalAlertCount };
+    return { bg: EVENT_TYPES.line_drop.color, ring: EVENT_TYPES.line_drop.ring, label: marker.totalAlertCount };
   }
 
   // No alerts detected
-  return { bg: '#10B981', ring: '#34D399', label: 0 };
+  return { bg: HEALTHY_COLOR.color, ring: HEALTHY_COLOR.ring, label: 0 };
 }
 
 /**

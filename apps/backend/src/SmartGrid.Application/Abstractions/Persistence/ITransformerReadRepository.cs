@@ -47,4 +47,9 @@ public interface ITransformerReadRepository
     Task<PagedResult<TransformerReadingDto>> GetReadingsAsync(
         TransformerReadingCriteria criteria,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<TransformerLoadPointDto>> GetLoadProfileAsync(
+        string transformerId,
+        DateRange period,
+        CancellationToken cancellationToken = default);
 }

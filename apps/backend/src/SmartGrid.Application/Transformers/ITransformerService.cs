@@ -22,4 +22,17 @@ public interface ITransformerService
     Task<TransformerDetailsDto?> GetByIdAsync(
         string transformerId,
         CancellationToken cancellationToken = default);
+
+    Task<PagedResult<TransformerPeakDto>> GetPeaksAsync(
+        TransformerPeakCriteria criteria,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<TransformerLoadPointDto>> GetLoadProfileAsync(
+        string transformerId,
+        DateRange period,
+        CancellationToken cancellationToken = default);
+
+    Task<PagedResult<TransformerReadingDto>> GetReadingsAsync(
+        TransformerReadingCriteria criteria,
+        CancellationToken cancellationToken = default);
 }

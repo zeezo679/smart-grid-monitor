@@ -33,7 +33,7 @@ export function KpiCard({
           {isLoading ? (
             <Skeleton className="mt-2 h-7 w-24" />
           ) : (
-            <p className={cn('mt-1 text-xl font-semibold tracking-tight sm:text-2xl', accentClass)}>
+            <p className={cn('mt-1 whitespace-nowrap text-xl font-semibold tracking-tight sm:text-2xl', accentClass)}>
               {value}
             </p>
           )}

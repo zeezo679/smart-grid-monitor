@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using Snowflake.Data.Client;
 using SmartGrid.Application.Abstractions.Persistence;
 using SmartGrid.Application.Common.Models;
@@ -37,7 +38,7 @@ public sealed class SnowflakeDashboardRepository : IDashboardReadRepository
                     MAX(PEAK_NETWORK_KW) AS PEAK_NETWORK_KW,
                     COUNT(*) AS DEMAND_ROW_COUNT
                 FROM KPI_DAILY_DEMAND
-                WHERE DEMAND_DATE >= :startDate AND DEMAND_DATE <= :endDate
+                WHERE DEMAND_DATE >= :1 AND DEMAND_DATE <= :2
             ),
             alerts AS (
                 SELECT
@@ -47,13 +48,13 @@ public sealed class SnowflakeDashboardRepository : IDashboardReadRepository
                     COUNT(DISTINCT CASE WHEN EVENT_TYPE = 'line_drop' THEN TRANSFORMER_ID END) AS LINEDROP_TRANSFORMERS,
                     COUNT(DISTINCT TRANSFORMER_ID) AS AFFECTED_TRANSFORMERS
                 FROM ANOMALY_FLAGS
-                WHERE DATE(END_TS) >= :startDate AND DATE(END_TS) <= :endDate
+                WHERE DATE(END_TS) >= :1 AND DATE(END_TS) <= :2
             ),
             freshness AS (
                 SELECT
                     MAX(READING_TS) AS LATEST_READING_TS
                 FROM FACT_TRANSFORMER_READINGS
-                WHERE DATE(READING_TS) >= :startDate AND DATE(READING_TS) <= :endDate
+                WHERE DATE(READING_TS) >= :1 AND DATE(READING_TS) <= :2
             )
             SELECT
                 d.TOTAL_ENERGY_KWH,
@@ -76,8 +77,8 @@ public sealed class SnowflakeDashboardRepository : IDashboardReadRepository
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
 
-        AddDateParameter(cmd, "startDate", period.Start);
-        AddDateParameter(cmd, "endDate", period.End);
+        AddDateParameter(cmd, "1", period.Start);
+        AddDateParameter(cmd, "2", period.End);
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
@@ -107,8 +108,8 @@ public sealed class SnowflakeDashboardRepository : IDashboardReadRepository
                 };
             }
 
-            var totalEnergy = reader.IsDBNull(0) ? (decimal?)null : reader.GetDecimal(0);
-            var peakNetwork = reader.IsDBNull(1) ? (decimal?)null : reader.GetDecimal(1);
+            var totalEnergy = reader.IsDBNull(0) ? (decimal?)null : ReadDecimal(reader, 0);
+            var peakNetwork = reader.IsDBNull(1) ? (decimal?)null : ReadDecimal(reader, 1);
             var theftTransformers = reader.IsDBNull(4) ? 0 : Convert.ToInt32(reader[4]);
             var overloadTransformers = reader.IsDBNull(5) ? 0 : Convert.ToInt32(reader[5]);
             var linedropTransformers = reader.IsDBNull(6) ? 0 : Convert.ToInt32(reader[6]);
@@ -155,7 +156,7 @@ public sealed class SnowflakeDashboardRepository : IDashboardReadRepository
                 TOTAL_DAILY_KWH,
                 PEAK_NETWORK_KW
             FROM KPI_DAILY_DEMAND
-            WHERE DEMAND_DATE >= :startDate AND DEMAND_DATE <= :endDate
+            WHERE DEMAND_DATE >= :1 AND DEMAND_DATE <= :2
             ORDER BY DEMAND_DATE ASC
             """;
 
@@ -165,8 +166,8 @@ public sealed class SnowflakeDashboardRepository : IDashboardReadRepository
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
 
-        AddDateParameter(cmd, "startDate", period.Start);
-        AddDateParameter(cmd, "endDate", period.End);
+        AddDateParameter(cmd, "1", period.Start);
+        AddDateParameter(cmd, "2", period.End);
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 
@@ -184,8 +185,8 @@ public sealed class SnowflakeDashboardRepository : IDashboardReadRepository
                 demandDate = DateOnly.Parse(reader.GetString(0));
             }
 
-            var totalKwh = reader.GetDecimal(1);
-            var peakKw = reader.GetDecimal(2);
+            var totalKwh = ReadDecimal(reader, 1);
+            var peakKw = ReadDecimal(reader, 2);
 
             points.Add(new DailyDemandPointDto(demandDate, totalKwh, peakKw));
         }
@@ -201,4 +202,9 @@ public sealed class SnowflakeDashboardRepository : IDashboardReadRepository
         param.Value = date.ToDateTime(TimeOnly.MinValue);
         cmd.Parameters.Add(param);
     }
+
+    // Our MARTS numbers are FLOAT (double) in Snowflake. Converting the value works for
+    // FLOAT and NUMBER alike, while GetDecimal can fail on a FLOAT column.
+    private static decimal ReadDecimal(DbDataReader reader, int ordinal)
+        => Convert.ToDecimal(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
 }

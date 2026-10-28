@@ -1,19 +1,17 @@
 using SmartGrid.Application.Accuracy.Models;
+using SmartGrid.Application.Accuracy.Queries;
+using SmartGrid.Application.Common.Models;
 
 namespace SmartGrid.Application.Abstractions.Persistence;
 
 /// <summary>
-/// Read-only repository for detection accuracy results.
+/// Read-only access to detection accuracy (detected anomalies vs injected ground truth).
 /// </summary>
-/// <remarks>
-/// Backed by <c>accuracy_summary</c>.
-/// The report is based on the existing warehouse accuracy models.
-/// It does not re-implement detection or compare directly against the simulator's answer key.
-/// </remarks>
 public interface IAccuracyReadRepository
 {
-    /// <summary>
-    /// Retrieves the complete accuracy report with per-type breakdown and overall metrics.
-    /// </summary>
     Task<AccuracyReportDto> GetReportAsync(CancellationToken cancellationToken = default);
+
+    Task<PagedResult<AccuracyDetailDto>> GetDetailsAsync(
+        AccuracyDetailCriteria criteria,
+        CancellationToken cancellationToken = default);
 }
