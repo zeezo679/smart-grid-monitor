@@ -126,11 +126,8 @@ public sealed class SnowflakeGridMapRepository : IGridMapReadRepository
         cmd.CommandText = sqlBuilder.ToString();
 
         // Parameterized date boundaries: inclusive start, exclusive end of day
-        var startInclusive = criteria.Period.Start.ToString("yyyy-MM-dd 00:00:00");
-        var endExclusive = criteria.Period.End.AddDays(1).ToString("yyyy-MM-dd 00:00:00");
-
-        AddStringParameter(cmd, "startDateInclusive", startInclusive);
-        AddStringParameter(cmd, "endDateExclusive", endExclusive);
+        AddDateTimeParameter(cmd, "startDateInclusive", criteria.Period.Start.ToDateTime(TimeOnly.MinValue));
+        AddDateTimeParameter(cmd, "endDateExclusive", criteria.Period.End.AddDays(1).ToDateTime(TimeOnly.MinValue));
 
         if (!string.IsNullOrWhiteSpace(criteria.District))
         {
@@ -190,6 +187,15 @@ public sealed class SnowflakeGridMapRepository : IGridMapReadRepository
         }
 
         return markers;
+    }
+
+    private static void AddDateTimeParameter(DbCommand cmd, string name, DateTime value)
+    {
+        var param = cmd.CreateParameter();
+        param.ParameterName = name;
+        param.DbType = DbType.DateTime;
+        param.Value = value;
+        cmd.Parameters.Add(param);
     }
 
     private static void AddStringParameter(DbCommand cmd, string name, string value)

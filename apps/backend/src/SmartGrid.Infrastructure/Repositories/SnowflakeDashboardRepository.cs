@@ -198,7 +198,7 @@ public sealed class SnowflakeDashboardRepository : IDashboardReadRepository
         var param = cmd.CreateParameter();
         param.ParameterName = name;
         param.DbType = DbType.Date;
-        param.Value = date.ToString("yyyy-MM-dd");
+        param.Value = date.ToDateTime(TimeOnly.MinValue);
         cmd.Parameters.Add(param);
     }
 }

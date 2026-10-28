@@ -116,12 +116,10 @@ public sealed class MockAlertRepository : IAlertReadRepository
         var summaries = EventTypes.All.Select(type =>
         {
             var matching = alerts.Where(a => a.EventType == type).ToList();
-            return new AlertSummaryByTypeDto
-            {
-                EventType = type,
-                TotalAlerts = matching.Count,
-                AffectedTransformers = matching.Select(a => a.TransformerId).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
-            };
+            return new AlertSummaryByTypeDto(
+                type,
+                matching.Count,
+                matching.Select(a => a.TransformerId).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         }).ToList();
 
         return Task.FromResult<IReadOnlyList<AlertSummaryByTypeDto>>(summaries);
