@@ -6,6 +6,8 @@ import {
   Bell,
   Cpu,
   Target,
+  BrainCircuit,
+  Lock,
   ChevronLeft,
   ChevronRight,
   Zap,
@@ -17,6 +19,8 @@ interface NavItem {
   icon: React.ElementType;
   /** Extra paths that should also highlight this item. */
   aliases?: string[];
+  /** Closed feature: still clickable (shows the locked screen) but marked with a lock. */
+  locked?: boolean;
 }
 
 const navigation: NavItem[] = [
@@ -25,6 +29,7 @@ const navigation: NavItem[] = [
   { label: 'Alert Log', path: '/alert-log', icon: Bell, aliases: ['/alerts'] },
   { label: 'Transformers', path: '/transformers', icon: Cpu },
   { label: 'Accuracy', path: '/accuracy', icon: Target },
+  { label: 'Decision Center', path: '/decisions', icon: BrainCircuit, locked: true },
 ];
 
 interface SidebarProps {
@@ -82,6 +87,9 @@ export function Sidebar({ collapsed, onToggleCollapsed, onNavigate }: SidebarPro
             >
               <Icon className="h-4.5 w-4.5 shrink-0" aria-hidden="true" />
               {!collapsed && <span>{item.label}</span>}
+              {!collapsed && item.locked && (
+                <Lock className="ml-auto h-3.5 w-3.5 text-gray-600" aria-label="Closed feature" />
+              )}
             </NavLink>
           );
         })}

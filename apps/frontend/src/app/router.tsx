@@ -8,6 +8,7 @@ import { OverviewPage } from '@/features/dashboard/pages/OverviewPage';
 const AlertMapPage = lazy(() => import('@/features/map/pages/AlertMapPage').then((m) => ({ default: m.AlertMapPage })));
 const AlertLogPage = lazy(() => import('@/features/alerts/pages/AlertLogPage').then((m) => ({ default: m.AlertLogPage })));
 const TransformersPage = lazy(() => import('@/features/transformers/pages/TransformersPage').then((m) => ({ default: m.TransformersPage })));
+const DecisionCenterPage = lazy(() => import('@/features/decisions/pages/DecisionCenterPage').then((m) => ({ default: m.DecisionCenterPage })));
 const AccuracyPage = lazy(() => import('@/features/accuracy/pages/AccuracyPage').then((m) => ({ default: m.AccuracyPage })));
 
 function PageFallback() {
@@ -29,6 +30,7 @@ export function AppRouter() {
           <Route path="/alert-log" element={<AlertLogPage />} />
           <Route path="/transformers" element={<TransformersPage />} />
           <Route path="/accuracy" element={<AccuracyPage />} />
+          <Route path="/decisions" element={<DecisionCenterPage />} />
           {/* Aliases */}
           <Route path="/alert-map" element={<Navigate to="/alerts/map" replace />} />
           <Route path="/alerts" element={<Navigate to="/alert-log" replace />} />
