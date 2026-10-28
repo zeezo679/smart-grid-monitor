@@ -31,4 +31,21 @@ public sealed record TransformerListItemDto
 
     /// <summary>Longitude.</summary>
     public required double Longitude { get; init; }
+
+    /// <summary>
+    /// Historical maximum active power recorded across all available readings (kW).
+    /// Nullable if unrecorded.
+    /// </summary>
+    public decimal? PeakKwRecorded { get; init; }
+
+    /// <summary>
+    /// Historical maximum load percentage recorded relative to nameplate capacity (%).
+    /// Nullable if unrecorded.
+    /// </summary>
+    public decimal? PeakLoadPercentage { get; init; }
+
+    /// <summary>
+    /// Total number of detected anomaly alert windows for this transformer.
+    /// </summary>
+    public int AlertCount { get; init; }
 }

@@ -19,6 +19,12 @@ public sealed class TransformerSearchCriteria
     /// <summary>Optional substation ID filter.</summary>
     public string? SubstationId { get; init; }
 
+    /// <summary>Optional search term for matching transformer ID.</summary>
+    public string? Search { get; init; }
+
+    /// <summary>When true, returns only transformers with at least one detected alert.</summary>
+    public bool OnlyWithAlerts { get; init; }
+
     /// <summary>Pagination request.</summary>
     public required PageRequest Pagination { get; init; }
 }

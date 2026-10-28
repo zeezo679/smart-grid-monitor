@@ -1,4 +1,5 @@
 using SmartGrid.Application.Dashboard;
+using SmartGrid.Application.GridMap;
 using SmartGrid.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +26,7 @@ builder.Services.AddCors(options =>
 
 // Application services
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IGridMapService, GridMapService>();
 
 // Infrastructure services and data provider selection (Mock / Snowflake)
 builder.Services.AddSmartGridInfrastructure(builder.Configuration);

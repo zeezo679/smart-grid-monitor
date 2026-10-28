@@ -97,6 +97,7 @@ All interfaces live in `SmartGrid.Application.Abstractions.Persistence`.
 | Interface                    | Responsibility                                     |
 |------------------------------|---------------------------------------------------|
 | `IDashboardReadRepository`   | Dashboard overview, daily demand series            |
+| `IGridMapReadRepository`     | Geographic transformer markers, peak load & alerts |
 | `IAlertReadRepository`       | Alert search, get-by-id, summary by type           |
 | `ITransformerReadRepository` | Transformer search, details, peaks, readings       |
 | `IAccuracyReadRepository`    | Detection accuracy report                          |
@@ -530,5 +531,118 @@ dotnet test apps/backend/tests/SmartGrid.Api.Tests/ --filter "FullyQualifiedName
 - **Live Warehouse Assumptions to Confirm with Credentials**:
   - The default database and schema in the Snowflake connection string should point to `SMART_GRID.MARTS`.
   - If table names are case-sensitive in Snowflake (unquoted identifiers default to uppercase), ensure Snowflake session settings resolve `KPI_DAILY_DEMAND`, `ANOMALY_FLAGS`, and `FACT_TRANSFORMER_READINGS`.
+
+---
+
+## 19. Grid Map Markers API & Data Contract
+
+### 19.1 Endpoint Specification
+
+```http
+GET /api/grid/map-markers
+```
+
+Retrieves geographic transformer markers enriched with administrative hierarchy, nameplate capacity, historical peak loading, and period-specific anomaly alert window aggregations.
+
+#### Query Parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `from` | `YYYY-MM-DD` | **Yes** | Inclusive calendar start date. |
+| `to` | `YYYY-MM-DD` | **Yes** | Inclusive calendar end date. |
+| `district` | `string` | No | Case-insensitive filter matching `DIM_TRANSFORMERS.DISTRICT` (e.g. `Dokki`, `Nasr City`, `Maadi`, `Heliopolis`, `Shubra`). |
+| `type` | `string` | No | Threat type filter. Must be exactly `theft`, `overload`, or `line_drop`. Unsupported values return HTTP 400. |
+| `onlyWithAlerts` | `boolean` | No | When `true`, returns only transformers with qualifying alerts in the period. Default is `false`. |
+
+#### Validation Rules
+
+- Both `from` and `to` are required and must conform to `YYYY-MM-DD`.
+- `from` must be earlier than or equal to `to`.
+- Maximum query range is **366 calendar days** (inclusive).
+- `type` must belong to the supported event types (`theft`, `overload`, `line_drop`). Invalid values return HTTP 400 with `ProblemDetails`.
+
+---
+
+### 19.2 MapMarkerDto Response Structure
+
+Each item in the returned array represents one distinct transformer:
+
+```json
+[
+  {
+    "transformerId": "TR-0012",
+    "district": "Dokki",
+    "governorate": "Giza",
+    "feederId": "F-01",
+    "substationId": "SS-DOKKI",
+    "latitude": 30.0384,
+    "longitude": 31.2109,
+    "capacityKw": 500.0,
+    "peakKwRecorded": 420.50,
+    "peakLoadPercentage": 84.10,
+    "theftAlertCount": 2,
+    "overloadAlertCount": 0,
+    "lineDropAlertCount": 0,
+    "totalAlertCount": 2,
+    "latestAlertAt": "2026-08-02T07:00:00+00:00"
+  }
+]
+```
+
+#### Field Specifications
+
+| Field | Type | Description |
+|---|---|---|
+| `transformerId` | `string` | Unique transformer identifier (from `DIM_TRANSFORMERS`). |
+| `district` | `string` | Administrative district. |
+| `governorate` | `string` | Administrative governorate. |
+| `feederId` | `string` | Connected feeder ID. |
+| `substationId` | `string` | Connected substation ID. |
+| `latitude` | `double` | WGS 84 latitude coordinate. |
+| `longitude` | `double` | WGS 84 longitude coordinate. |
+| `capacityKw` | `decimal` | Nameplate capacity in kilowatts (kW). |
+| `peakKwRecorded` | `decimal?` | Historical maximum active power recorded across all available readings (kW). Null if unrecorded. |
+| `peakLoadPercentage` | `decimal?` | Historical maximum load percentage relative to capacity (%). Null if unrecorded. |
+| `theftAlertCount` | `int` | Number of theft alert windows overlapping the requested period. |
+| `overloadAlertCount` | `int` | Number of overload alert windows overlapping the requested period. |
+| `lineDropAlertCount` | `int` | Number of line drop (voltage anomaly) alert windows overlapping the requested period. |
+| `totalAlertCount` | `int` | Sum of all alert windows in the period (`theft` + `overload` + `line_drop`). |
+| `latestAlertAt` | `DateTimeOffset?` | UTC end timestamp of the latest qualifying alert in the period. Null if 0 alerts. |
+
+---
+
+### 19.3 Date & Timestamp Semantics
+
+Date parameters are interpreted as UTC boundary intervals:
+- Start boundary: `from` date at `00:00:00 UTC` (inclusive).
+- End boundary: Day after `to` date at `00:00:00 UTC` (exclusive).
+
+An alert window overlaps the period if:
+```sql
+alert.start_ts < periodEndExclusive AND alert.end_ts >= periodStartInclusive
+```
+This ensures multi-hour alerts or alerts crossing midnight boundaries are accurately accounted for.
+
+---
+
+### 19.4 Coordinate Validation Policy
+
+Transformers without valid geographic coordinates are never returned as usable map markers:
+- Latitude must be between `-90.0` and `+90.0`.
+- Longitude must be between `-180.0` and `+180.0`.
+- Null Island coordinates (`lat = 0.0` and `lon = 0.0`), `NaN`, and infinities are rejected.
+
+---
+
+### 19.5 Filtering and Aggregation Semantics
+
+1. **Distinct Transformers**: Each qualifying transformer appears at most once in the response.
+2. **Alert Windows vs Transformers**: Alert counts represent the number of detected anomaly alert windows, not distinct transformers.
+3. **Preserved Complete Profile**: Even when a specific threat `type` filter is active, the per-type counts (`theftAlertCount`, `overloadAlertCount`, `lineDropAlertCount`) on each returned marker reflect the full alert profile in the period.
+4. **`onlyWithAlerts` Behavior**:
+   - When `onlyWithAlerts=true`: only transformers with at least one matching alert are returned. If a `type` filter is active, the transformer must have alerts of that specific type.
+   - When `onlyWithAlerts=false`: transformers without alerts in the period still appear (with counts = 0 and `latestAlertAt = null`). If a `type` filter is active, non-alert transformers appear alongside transformers matching the specified threat type.
+5. **Historical Peak Metrics**: `peakKwRecorded` and `peakLoadPercentage` are sourced from `KPI_TRANSFORMER_PEAK` and represent historical maxima over all available warehouse records. They are explicitly not real-time loads.
+
 
 

@@ -34,6 +34,7 @@ public static class DependencyInjection
         if (string.Equals(provider, "Mock", StringComparison.OrdinalIgnoreCase))
         {
             services.AddScoped<IDashboardReadRepository, MockDashboardRepository>();
+            services.AddScoped<IGridMapReadRepository, MockGridMapRepository>();
         }
         else if (string.Equals(provider, "Snowflake", StringComparison.OrdinalIgnoreCase))
         {
@@ -47,6 +48,7 @@ public static class DependencyInjection
             }
 
             services.AddScoped<IDashboardReadRepository>(_ => new SnowflakeDashboardRepository(connectionString));
+            services.AddScoped<IGridMapReadRepository>(_ => new SnowflakeGridMapRepository(connectionString));
         }
         else
         {

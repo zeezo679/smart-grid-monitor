@@ -24,10 +24,13 @@ public class ProviderSelectionTests
         services.AddSmartGridInfrastructure(configuration);
 
         var provider = services.BuildServiceProvider();
-        var repo = provider.GetRequiredService<IDashboardReadRepository>();
+        var dashboardRepo = provider.GetRequiredService<IDashboardReadRepository>();
+        var gridMapRepo = provider.GetRequiredService<IGridMapReadRepository>();
 
-        Assert.NotNull(repo);
-        Assert.IsType<MockDashboardRepository>(repo);
+        Assert.NotNull(dashboardRepo);
+        Assert.IsType<MockDashboardRepository>(dashboardRepo);
+        Assert.NotNull(gridMapRepo);
+        Assert.IsType<MockGridMapRepository>(gridMapRepo);
     }
 
     [Fact]
@@ -43,10 +46,13 @@ public class ProviderSelectionTests
         services.AddSmartGridInfrastructure(configuration);
 
         var provider = services.BuildServiceProvider();
-        var repo = provider.GetRequiredService<IDashboardReadRepository>();
+        var dashboardRepo = provider.GetRequiredService<IDashboardReadRepository>();
+        var gridMapRepo = provider.GetRequiredService<IGridMapReadRepository>();
 
-        Assert.NotNull(repo);
-        Assert.IsType<MockDashboardRepository>(repo);
+        Assert.NotNull(dashboardRepo);
+        Assert.IsType<MockDashboardRepository>(dashboardRepo);
+        Assert.NotNull(gridMapRepo);
+        Assert.IsType<MockGridMapRepository>(gridMapRepo);
     }
 
     [Fact]
@@ -67,11 +73,14 @@ public class ProviderSelectionTests
 
         var provider = services.BuildServiceProvider();
 
-        // Must construct SnowflakeDashboardRepository without attempting to open connection
-        var repo = provider.GetRequiredService<IDashboardReadRepository>();
+        // Must construct Snowflake repositories without attempting to open connection
+        var dashboardRepo = provider.GetRequiredService<IDashboardReadRepository>();
+        var gridMapRepo = provider.GetRequiredService<IGridMapReadRepository>();
 
-        Assert.NotNull(repo);
-        Assert.IsType<SnowflakeDashboardRepository>(repo);
+        Assert.NotNull(dashboardRepo);
+        Assert.IsType<SnowflakeDashboardRepository>(dashboardRepo);
+        Assert.NotNull(gridMapRepo);
+        Assert.IsType<SnowflakeGridMapRepository>(gridMapRepo);
     }
 
     [Theory]
